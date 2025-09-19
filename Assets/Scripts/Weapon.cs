@@ -13,6 +13,13 @@ public class Weapon : MonoBehaviour
     public AudioSource audioSrc;       // 播放开火/换弹音
     public AudioClip fireClip, reloadClip, dryClip;
 
+    [Header("可视化/弹道")]
+    public bool showTracer = true;     // 是否显示弹道线
+    public float tracerWidth = 0.03f;  // 线宽（米）
+    public float tracerDuration = 0.06f; // 持续时间（秒）
+    public Color tracerColor = new Color(1f, 0.9f, 0.2f, 0.9f); // 发光黄
+    static Material s_tracerMat;       // 共享材质（Sprites/Default）
+
     [Header("参数")]
     public float damage = 25f;
     public float range = 200f;
@@ -112,6 +119,8 @@ public class Weapon : MonoBehaviour
         Ray ray = cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
         ray.direction = dir;
 
+        Vector3 startPos = muzzle ? muzzle.position : cam.transform.position;
+        Vector3 endPos = cam.transform.position + dir * range;
         if (Physics.Raycast(ray, out RaycastHit hit, range, hitMask, QueryTriggerInteraction.Ignore))
         {
             bool head = hit.collider.CompareTag("Head");
@@ -128,10 +137,47 @@ public class Weapon : MonoBehaviour
                 // 打到环境：贴个火花
                 if (hitFxPrefab) Instantiate(hitFxPrefab, hit.point, Quaternion.LookRotation(hit.normal)).SetActive(true);
             }
+
+            endPos = hit.point;
         }
+
+        if (showTracer)
+            SpawnTracer(startPos, endPos);
 
         // 简易后坐力：轻推相机旋转
         RecoilKick();
+    }
+
+    void SpawnTracer(Vector3 start, Vector3 end)
+    {
+        StartCoroutine(TracerCo(start, end));
+    }
+
+    IEnumerator TracerCo(Vector3 start, Vector3 end)
+    {
+        var go = new GameObject("Tracer");
+        var lr = go.AddComponent<LineRenderer>();
+        lr.useWorldSpace = true;
+        lr.positionCount = 2;
+        lr.SetPosition(0, start);
+        lr.SetPosition(1, end);
+        lr.startWidth = tracerWidth;
+        lr.endWidth = tracerWidth;
+        lr.numCapVertices = 2;
+        lr.numCornerVertices = 2;
+        lr.startColor = tracerColor;
+        lr.endColor = tracerColor;
+        if (s_tracerMat == null)
+        {
+            var shader = Shader.Find("Sprites/Default");
+            s_tracerMat = new Material(shader);
+            s_tracerMat.enableInstancing = true;
+            s_tracerMat.color = tracerColor;
+        }
+        lr.material = s_tracerMat;
+
+        yield return new WaitForSeconds(tracerDuration);
+        if (go) Destroy(go);
     }
 
     Vector3 GetSpreadDirection(float degree)
