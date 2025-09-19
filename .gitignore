@@ -1,0 +1,110 @@
+# Unity generated folders
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+
+# Unity cache and generated files
+*.pidb
+*.suo
+*.user
+*.userprefs
+*.unityproj
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+*.VC.VC.opendb
+*.unitypackage
+*.stacktrace
+sysinfo.txt
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+
+# Visual Studio
+.vs/
+*.csproj
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.msscci
+*.aps
+*.ncb
+*.sdf
+*.cachefile
+*.tlog
+*.obj
+
+# Build artifacts
+[Bb]uilds?*/
+*.apk
+*.aab
+*.app
+*.ipa
+
+# Crash and profiler data
+CrashReport*/
+*.dmp
+*.memgraph
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+.plastic/
+
+
+.vscode/
+# ProjectSettings/
+Assets/TextMesh Pro/
+ 
+## Converted from ignore.conf (normalized for .gitignore)
+# Unity Asset Store tools
+Assets/AssetStoreTools/
+
+# Plastic SCM plugin (keep VCS metadata in .plastic/ already ignored)
+Assets/Plugins/PlasticSCM*/
+
+# Private artifacts
+*.private
+*.private.meta
+*.private.[0-9]*
+*.private.[0-9]*.meta
+
+# Additional tools and IDEs
+.gradle/
+.consulo/
+
+# Unity export cache
+ExportedObj/
+
+# Temp files
+*.tmp
+
+# Debug database metas (if generated under Assets)
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# Crashlytics
+crashlytics-build.properties
+
+# Unity editor sync marker
+~UnityDirMonSyncFile~*
+
+# Addressables build outputs
+Assets/AddressableAssetsData/*/*.bin*
+Assets/StreamingAssets/aa.meta
+Assets/StreamingAssets/*/aa/*
+
+# OS specific
+Desktop.ini
