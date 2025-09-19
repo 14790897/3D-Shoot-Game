@@ -15,6 +15,7 @@ GameObject:
   - component: {fileID: 8245863904878570508}
   - component: {fileID: 855731075371246723}
   - component: {fileID: 1814022809802611655}
+  - component: {fileID: 8282032912512925985}
   m_Layer: 3
   m_Name: Enemy
   m_TagString: Untagged
@@ -168,3 +169,27 @@ NavMeshAgent:
   m_BaseOffset: 0.5
   m_WalkableMask: 4294967295
   m_ObstacleAvoidanceType: 4
+--- !u!114 &8282032912512925985
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2685581087827960105}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 74ad40d4235a18341b719b8715994689, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyHealthBar
+  target: {fileID: 8245863904878570508}
+  anchor: {fileID: 0}
+  worldOffset: {x: 0, y: 2, z: 0}
+  width: 1.2
+  height: 0.12
+  backColor: {r: 0, g: 0, b: 0, a: 0.5}
+  lowColor: {r: 1, g: 0.2, b: 0.2, a: 0.95}
+  midColor: {r: 1, g: 1, b: 0.2, a: 0.95}
+  fullColor: {r: 0.2, g: 1, b: 0.2, a: 0.95}
+  alwaysVisible: 1
+  hideWhenFull: 1
+  visibleSecondsAfterHit: 1.5

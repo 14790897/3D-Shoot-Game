@@ -17,6 +17,7 @@ public class EnemyHealthBar : MonoBehaviour
     public Color fullColor = new Color(0.2f, 1f, 0.2f, 0.95f);
 
     [Header("显示逻辑")]
+    public bool alwaysVisible = false;       // 始终可见（忽略以下选项）
     public bool hideWhenFull = true;         // 满血隐藏
     public float visibleSecondsAfterHit = 1.5f;
 
@@ -41,7 +42,9 @@ public class EnemyHealthBar : MonoBehaviour
     {
         if (target) _lastHp = target.hp;
         UpdateBarImmediate();
-        SetRenderersVisible(!hideWhenFull);
+        // 初始不因“可见时长”而闪现
+        _lastHitTime = float.NegativeInfinity;
+        SetRenderersVisible(alwaysVisible || !hideWhenFull);
     }
 
     void LateUpdate()
@@ -64,8 +67,13 @@ public class EnemyHealthBar : MonoBehaviour
 
         bool shouldShow = true;
         float ratio = Mathf.Clamp01(target.hp / Mathf.Max(0.0001f, target.maxHP));
-        if (hideWhenFull)
-            shouldShow = ratio < 0.999f || (Time.time - _lastHitTime) < visibleSecondsAfterHit;
+        if (!alwaysVisible)
+        {
+            if (hideWhenFull)
+                shouldShow = ratio < 0.999f || (Time.time - _lastHitTime) < visibleSecondsAfterHit;
+            else
+                shouldShow = true; // 始终显示
+        }
         SetRenderersVisible(shouldShow);
     }
 
