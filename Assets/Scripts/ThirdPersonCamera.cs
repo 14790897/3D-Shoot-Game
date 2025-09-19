@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class ThirdPersonCamera : MonoBehaviour
 {
@@ -19,8 +20,14 @@ public class ThirdPersonCamera : MonoBehaviour
 
     void LateUpdate()
     {
-        yaw += Input.GetAxis("Mouse X") * sens.x * Time.deltaTime;
-        pitch -= Input.GetAxis("Mouse Y") * sens.y * Time.deltaTime;
+        // 鼠标移动（或手柄右摇杆）
+        Vector2 look = Vector2.zero;
+        if (Mouse.current != null) look += Mouse.current.delta.ReadValue();
+        if (Gamepad.current != null) look += Gamepad.current.rightStick.ReadValue() * 10f; // 放大手柄灵敏度
+
+        // 与旧 GetAxis * dt 的手感接近：这里保留 * Time.deltaTime
+        yaw += look.x * sens.x * Time.deltaTime;
+        pitch -= look.y * sens.y * Time.deltaTime;
         pitch = Mathf.Clamp(pitch, pitchLimits.x, pitchLimits.y);
 
         Quaternion rot = Quaternion.Euler(pitch, yaw, 0);

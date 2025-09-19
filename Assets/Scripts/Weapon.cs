@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 using System.Collections;
 
 public class Weapon : MonoBehaviour
@@ -56,15 +57,23 @@ public class Weapon : MonoBehaviour
 
     void Update()
     {
-        // 开火（左键）
-        if (Input.GetMouseButton(0)) TryFire();
+        // 开火（鼠标左键 / 手柄右扳机/肩键）
+        bool fireHeld = (Mouse.current != null && Mouse.current.leftButton.isPressed)
+                        || (Gamepad.current != null && (Gamepad.current.rightTrigger.ReadValue() > 0.5f || Gamepad.current.rightShoulder.isPressed));
+        if (fireHeld) TryFire();
 
-        // 瞄准（右键）
-        if (Input.GetMouseButtonDown(1)) SetADS(true);
-        if (Input.GetMouseButtonUp(1)) SetADS(false);
+        // 瞄准（鼠标右键 / 手柄左扳机）
+        bool adsPressed = (Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame)
+                          || (Gamepad.current != null && Gamepad.current.leftTrigger.ReadValue() > 0.5f && !ads);
+        bool adsReleased = (Mouse.current != null && Mouse.current.rightButton.wasReleasedThisFrame)
+                           || (Gamepad.current != null && Gamepad.current.leftTrigger.ReadValue() < 0.4f && ads);
+        if (adsPressed) SetADS(true);
+        if (adsReleased) SetADS(false);
 
-        // 换弹（R）
-        if (Input.GetKeyDown(KeyCode.R)) TryReload();
+        // 换弹（键盘R / 手柄X）
+        bool reloadPressed = (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
+                             || (Gamepad.current != null && Gamepad.current.buttonWest.wasPressedThisFrame);
+        if (reloadPressed) TryReload();
     }
 
     void SetADS(bool on)
