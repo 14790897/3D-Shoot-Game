@@ -29,6 +29,14 @@ public class Weapon : MonoBehaviour
     public float reloadTime = 1.8f;
     public float headshotMul = 2.0f;
 
+    [Header("抛射物（有限速度，可选）")]
+    public bool useProjectile = false;     // 设为 true 使用抛射物而非命中扫描
+    public float projectileSpeed = 80f;    // 子弹初速度（m/s）
+    public float projectileLife = 3f;      // 子弹生存时长
+    public float projectileGravity = 0f;   // 额外重力（m/s^2），0 表示无下坠
+    public float projectileRadius = 0.03f; // 子弹碰撞半径（米）
+    public GameObject projectilePrefab;    // 可选：子弹外观（若为空将用一个小球代替）
+
     [Header("散布&后坐力")]
     public float hipfireSpread = 1.2f;  // 度（在屏幕中心锥角）
     public float adsSpread = 0.25f;
@@ -107,45 +115,148 @@ public class Weapon : MonoBehaviour
         mag--;
         UIManager.Instance.UpdateAmmo(mag, reserveAmmo, magSize);
 
-        // 枪口特效/声音
-        if (muzzleFlash) muzzleFlash.Play(true);
+        // 枪口声音（粒子将在确定发射方向后播放）
         if (audioSrc && fireClip) audioSrc.PlayOneShot(fireClip, 0.9f);
 
         // 计算带散布的方向（屏幕中心小锥形）
         float spread = (ads ? adsSpread : hipfireSpread);
         Vector3 dir = GetSpreadDirection(spread);
 
-        // 从摄像机发射射线，命中处再用于命中特效
-        Ray ray = cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
-        ray.direction = dir;
+        // 计算有效层：若未配置则用默认层；并排除 Player 层避免自击中
+        int maskUsed = hitMask.value != 0 ? hitMask : Physics.DefaultRaycastLayers;
+        int playerLayer = LayerMask.NameToLayer("Player");
+        if (playerLayer >= 0) maskUsed &= ~(1 << playerLayer);
 
-        Vector3 startPos = muzzle ? muzzle.position : cam.transform.position;
-        Vector3 endPos = cam.transform.position + dir * range;
-        if (Physics.Raycast(ray, out RaycastHit hit, range, hitMask, QueryTriggerInteraction.Ignore))
+        if (useProjectile && muzzle)
         {
-            bool head = hit.collider.CompareTag("Head");
-            float finalDmg = head ? damage * headshotMul : damage;
+            // 先用相机方向获取瞄准点，再让子弹从枪口朝该点发射
+            Ray camRay = cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
+            camRay.direction = dir;
+            Vector3 aimPoint = cam.transform.position + dir * range;
+            if (Physics.Raycast(camRay, out RaycastHit hit, range, maskUsed, QueryTriggerInteraction.Collide))
+                aimPoint = hit.point;
 
-            var eh = hit.collider.GetComponentInParent<EnemyHealth>();
-            if (eh)
+            // 枪口到瞄准点之间若被近处物体挡住，改为撞点
+            Vector3 shotDir = (aimPoint - muzzle.position).sqrMagnitude > 1e-6f ? (aimPoint - muzzle.position).normalized : cam.transform.forward;
+            float dist = Vector3.Distance(muzzle.position, aimPoint);
+            if (Physics.SphereCast(muzzle.position, Mathf.Max(0.001f, projectileRadius), shotDir, out RaycastHit block, dist, maskUsed, QueryTriggerInteraction.Collide))
             {
-                eh.TakeDamage(finalDmg, hit.point, hit.normal, head);
-                UIManager.Instance.PulseHitMarker();
-            }
-            else
-            {
-                // 打到环境：贴个火花
-                if (hitFxPrefab) Instantiate(hitFxPrefab, hit.point, Quaternion.LookRotation(hit.normal)).SetActive(true);
+                aimPoint = block.point;
+                shotDir = (aimPoint - muzzle.position).normalized;
             }
 
-            endPos = hit.point;
+            // 对齐并播放枪口粒子
+            if (muzzleFlash)
+            {
+                var t = muzzleFlash.transform;
+                t.position = muzzle ? muzzle.position : t.position;
+                t.rotation = Quaternion.LookRotation(shotDir);
+                muzzleFlash.Play(true);
+            }
+
+            LaunchProjectile(muzzle.position, shotDir);
         }
+        else
+        {
+            // 从摄像机发射射线，命中处用于结算；弹道线仅作可视化
+            Ray ray = cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
+            ray.direction = dir;
 
-        if (showTracer)
-            SpawnTracer(startPos, endPos);
+            Vector3 startPos = muzzle ? muzzle.position : cam.transform.position;
+            Vector3 endPos = cam.transform.position + dir * range;
+
+            if (Physics.Raycast(ray, out RaycastHit hit, range, maskUsed, QueryTriggerInteraction.Collide))
+            {
+                bool head = hit.collider.CompareTag("Head");
+                float finalDmg = head ? damage * headshotMul : damage;
+
+                var eh = hit.collider.GetComponentInParent<EnemyHealth>();
+                if (eh)
+                {
+                    eh.TakeDamage(finalDmg, hit.point, hit.normal, head);
+                    UIManager.Instance.PulseHitMarker();
+                }
+                else
+                {
+                    // 打到环境：贴个火花/弹坑；稍微沿法线偏移避免Z冲突，并挂到被击中物体上
+                    if (hitFxPrefab)
+                    {
+                        var fx = Instantiate(hitFxPrefab, hit.point + hit.normal * 0.01f, Quaternion.LookRotation(hit.normal));
+                        fx.transform.SetParent(hit.collider.transform, true);
+                        fx.SetActive(true);
+                    }
+                }
+
+                endPos = hit.point;
+            }
+
+            // 对齐并播放枪口粒子（沿弹道方向）
+            if (muzzleFlash)
+            {
+                Vector3 startPos2 = muzzle ? muzzle.position : cam.transform.position;
+                Vector3 dir2 = (endPos - startPos2).sqrMagnitude > 1e-6f ? (endPos - startPos2).normalized : dir;
+                var t = muzzleFlash.transform;
+                t.position = startPos2;
+                t.rotation = Quaternion.LookRotation(dir2);
+                muzzleFlash.Play(true);
+            }
+
+            if (showTracer)
+                SpawnTracer(startPos, endPos);
+        }
 
         // 简易后坐力：轻推相机旋转
         RecoilKick();
+    }
+
+    void LaunchProjectile(Vector3 origin, Vector3 dir)
+    {
+        GameObject go;
+        if (projectilePrefab)
+        {
+            go = Instantiate(projectilePrefab, origin, Quaternion.LookRotation(dir));
+        }
+        else
+        {
+            // 兜底：生成一个小球体当作子弹
+            go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            go.name = "Bullet";
+            go.transform.position = origin;
+            go.transform.rotation = Quaternion.LookRotation(dir);
+            // 调整碰撞半径与外观大小
+            var sr = go.GetComponent<SphereCollider>();
+            sr.radius = Mathf.Max(0.005f, projectileRadius);
+            go.transform.localScale = Vector3.one * (projectileRadius * 2f);
+            // 简单的无光材质
+            var mr = go.GetComponent<MeshRenderer>();
+            var mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+            mat.color = new Color(1, 0.9f, 0.2f, 1);
+            mr.sharedMaterial = mat;
+        }
+
+        var rb = go.GetComponent<Rigidbody>();
+        if (!rb)
+        {
+            rb = go.AddComponent<Rigidbody>();
+        }
+        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
+        rb.useGravity = false; // 自定义重力在 Bullet 里处理
+        rb.linearVelocity = dir * projectileSpeed;
+
+        var b = go.GetComponent<Bullet>();
+        if (!b) b = go.AddComponent<Bullet>();
+        b.Init(this, damage, headshotMul, hitFxPrefab, projectileGravity, projectileLife, projectileRadius);
+        // 忽略与玩家自身的碰撞
+        if (cam)
+        {
+            var root = cam.transform.root;
+            var bulletCol = go.GetComponent<Collider>();
+            foreach (var col in root.GetComponentsInChildren<Collider>())
+            {
+                if (col && bulletCol) Physics.IgnoreCollision(bulletCol, col, true);
+            }
+        }
     }
 
     void SpawnTracer(Vector3 start, Vector3 end)
@@ -169,10 +280,18 @@ public class Weapon : MonoBehaviour
         lr.endColor = tracerColor;
         if (s_tracerMat == null)
         {
-            var shader = Shader.Find("Sprites/Default");
+            // 在 URP 下优先使用 Unlit，兼容内置管线则退回 Sprites/Default
+            Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+            bool isURP = shader != null;
+            if (!isURP)
+                shader = Shader.Find("Sprites/Default");
+
             s_tracerMat = new Material(shader);
             s_tracerMat.enableInstancing = true;
-            s_tracerMat.color = tracerColor;
+            if (isURP)
+                s_tracerMat.SetColor("_BaseColor", tracerColor);
+            else
+                s_tracerMat.color = tracerColor;
         }
         lr.material = s_tracerMat;
 
@@ -197,6 +316,12 @@ public class Weapon : MonoBehaviour
         e.x = e.x - recoilPitch;                         // 上抬
         e.y = e.y + Random.Range(-recoilYaw, recoilYaw); // 左右随机
         cam.transform.rotation = Quaternion.Euler(e);
+
+        // 若未绑定枪口特效，给出一次性提示，方便排查“看不到特效”
+        if (!muzzleFlash)
+        {
+            Debug.unityLogger.LogWarning("Weapon", "未绑定 muzzleFlash（枪口粒子）。请在 Weapon 组件上拖入一个 ParticleSystem 到 muzzleFlash 字段。");
+        }
     }
 
     public void TryReload()
