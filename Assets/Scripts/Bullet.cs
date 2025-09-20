@@ -74,7 +74,8 @@ public class Bullet : MonoBehaviour
         if (_hit) return;
         _hit = true;
 
-        bool head = col.CompareTag("Head");
+        // 使用字符串比较，避免在未定义 "Head" 标签时 CompareTag 产生日志
+        bool head = col && col.tag == "Head";
         float dmg = head ? _damage * _headMul : _damage;
 
         var eh = col.GetComponentInParent<EnemyHealth>();

@@ -58,22 +58,34 @@ public class Weapon : MonoBehaviour
     void Awake()
     {
         mag = magSize;
-        tpc = cam.GetComponent<ThirdPersonCamera>();
-        defaultFov = cam.fieldOfView;
-        if (tpc) defaultCamDist = tpc.distance;
-        UIManager.Instance.UpdateAmmo(mag, reserveAmmo, magSize);
+        // 相机容错：未绑定则尝试 Camera.main
+        if (!cam) cam = Camera.main;
+        if (cam)
+        {
+            tpc = cam.GetComponent<ThirdPersonCamera>();
+            defaultFov = cam.fieldOfView;
+            if (tpc) defaultCamDist = tpc.distance;
+        }
+        else
+        {
+            Debug.LogWarning("Weapon: 未找到 Camera，请在 Weapon.cam 绑定主相机。");
+        }
+        if (UIManager.Instance != null)
+            UIManager.Instance.UpdateAmmo(mag, reserveAmmo, magSize);
     }
 
     void OnEnable()
     {
         // 确保 UI 更新
-        UIManager.Instance.UpdateAmmo(mag, reserveAmmo, magSize);
+        if (UIManager.Instance != null)
+            UIManager.Instance.UpdateAmmo(mag, reserveAmmo, magSize);
     }
 
     void Update()
     {
         // 开火（鼠标左键 / 手柄右扳机/肩键）
         bool fireHeld = (Mouse.current != null && Mouse.current.leftButton.isPressed)
+                        || (Keyboard.current != null && Keyboard.current.jKey.isPressed) // 键盘J发射
                         || (Gamepad.current != null && (Gamepad.current.rightTrigger.ReadValue() > 0.5f || Gamepad.current.rightShoulder.isPressed));
         if (fireHeld) TryFire();
 
@@ -167,7 +179,8 @@ public class Weapon : MonoBehaviour
 
             if (Physics.Raycast(ray, out RaycastHit hit, range, maskUsed, QueryTriggerInteraction.Collide))
             {
-                bool head = hit.collider.CompareTag("Head");
+            // 使用 tag 字符串比较，避免在未定义 "Head" 标签时触发 Unity 的 CompareTag 警告
+            bool head = hit.collider && hit.collider.tag == "Head";
                 float finalDmg = head ? damage * headshotMul : damage;
 
                 var eh = hit.collider.GetComponentInParent<EnemyHealth>();
