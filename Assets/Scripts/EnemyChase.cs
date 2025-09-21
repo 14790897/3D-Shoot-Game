@@ -20,8 +20,11 @@ public class EnemyChase : MonoBehaviour
         if (atkTimer <= 0f && Vector3.Distance(transform.position, target.position) < 1.5f)
         {
             atkTimer = attackInterval;
-            var hp = target.GetComponent<PlayerHealth>();
-            if (hp) hp.TakeDamage(damage);
+            // 通过 UIManager 管理的玩家血量系统扣血
+            if (UIManager.Instance != null)
+                UIManager.Instance.PlayerTakeDamage(damage);
+            else
+                Debug.LogWarning("EnemyChase: UIManager 未就绪，无法对玩家造成伤害。");
         }
     }
 }

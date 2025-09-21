@@ -15,17 +15,22 @@ public class Weapon : MonoBehaviour
 
     [Header("可视化/弹道")]
     public bool showTracer = true;     // 是否显示弹道线
-    public float tracerWidth = 0.03f;  // 线宽（米）
-    public float tracerDuration = 0.06f; // 持续时间（秒）
+    public float tracerWidth = 0.3f;  // 线宽（米）
+    public float tracerDuration = 0.6f; // 持续时间（秒）
     public Color tracerColor = new Color(1f, 0.9f, 0.2f, 0.9f); // 发光黄
     static Material s_tracerMat;       // 共享材质（Sprites/Default）
+    [Header("调试")]
+    public bool logHits = true;        // 是否输出命中调试日志
+    public bool debugHitMarker = false;    // 命中调试：在命中点生成小标记
+    public float debugMarkerSize = 0.12f;
+    public float debugMarkerLife = 0.6f;
 
     [Header("参数")]
     public float damage = 25f;
     public float range = 200f;
     public float fireRate = 10f;        // 每秒发射数（10 = 600RPM）
-    public int magSize = 30;            // 弹匣容量
-    public int reserveAmmo = 90;        // 备用弹
+    public int magSize = 180;            // 弹匣容量
+    public int reserveAmmo = 1000;        // 备用弹
     public float reloadTime = 1.8f;
     public float headshotMul = 2.0f;
 
@@ -38,7 +43,7 @@ public class Weapon : MonoBehaviour
     public GameObject projectilePrefab;    // 可选：子弹外观（若为空将用一个小球代替）
 
     [Header("散布&后坐力")]
-    public float hipfireSpread = 1.2f;  // 度（在屏幕中心锥角）
+    public float hipfireSpread = 0.3f;  // 度（在屏幕中心锥角）
     public float adsSpread = 0.25f;
     public float recoilPitch = 0.6f;    // 每发上跳
     public float recoilYaw = 0.2f;      // 每发左右微抖
@@ -188,19 +193,37 @@ public class Weapon : MonoBehaviour
                 {
                     eh.TakeDamage(finalDmg, hit.point, hit.normal, head);
                     UIManager.Instance.PulseHitMarker();
+                    if (logHits)
+                    {
+                        string layerName = LayerMask.LayerToName(hit.collider.gameObject.layer);
+                        Debug.Log($"[Weapon] 命中敌人: {hit.collider.name} 层={layerName} 点={hit.point} 法线={hit.normal} 距离={hit.distance:F2}");
+                    }
                 }
                 else
                 {
                     // 打到环境：贴个火花/弹坑；稍微沿法线偏移避免Z冲突，并挂到被击中物体上
+
                     if (hitFxPrefab)
                     {
                         var fx = Instantiate(hitFxPrefab, hit.point + hit.normal * 0.01f, Quaternion.LookRotation(hit.normal));
                         fx.transform.SetParent(hit.collider.transform, true);
                         fx.SetActive(true);
                     }
+                    if (logHits)
+                    {
+                        string layerName = LayerMask.LayerToName(hit.collider.gameObject.layer);
+                        Debug.Log($"[Weapon] 命中环境: {hit.collider.name} 层={layerName} 点={hit.point} 法线={hit.normal} 距离={hit.distance:F2}");
+                    }
                 }
 
+                if (debugHitMarker) SpawnDebugMarker(hit.point, hit.normal);
+
                 endPos = hit.point;
+            }
+            else if (debugHitMarker)
+            {
+                // 未命中时，在最大射程处放一个标记，便于确认方向
+                SpawnDebugMarker(endPos, Vector3.up);
             }
 
             // 对齐并播放枪口粒子（沿弹道方向）
@@ -255,6 +278,7 @@ public class Weapon : MonoBehaviour
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
         rb.interpolation = RigidbodyInterpolation.Interpolate;
         rb.useGravity = false; // 自定义重力在 Bullet 里处理
+        // 兼容版本：统一使用 velocity 赋值
         rb.linearVelocity = dir * projectileSpeed;
 
         var b = go.GetComponent<Bullet>();
@@ -275,6 +299,22 @@ public class Weapon : MonoBehaviour
     void SpawnTracer(Vector3 start, Vector3 end)
     {
         StartCoroutine(TracerCo(start, end));
+    }
+
+    void SpawnDebugMarker(Vector3 pos, Vector3 normal)
+    {
+        var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        go.name = "HitDebug";
+        go.transform.position = pos + normal * 0.01f;
+        go.transform.localScale = Vector3.one * Mathf.Max(0.02f, debugMarkerSize);
+        var mr = go.GetComponent<MeshRenderer>();
+        var mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+        var hasBase = mat.HasProperty("_BaseColor");
+        if (hasBase) mat.SetColor("_BaseColor", new Color(1f, 0.2f, 0.6f, 1f)); else mat.color = new Color(1f, 0.2f, 0.6f, 1f);
+        mr.sharedMaterial = mat;
+        var col = go.GetComponent<Collider>();
+        if (col) col.enabled = false;
+        Destroy(go, Mathf.Max(0.05f, debugMarkerLife));
     }
 
     IEnumerator TracerCo(Vector3 start, Vector3 end)

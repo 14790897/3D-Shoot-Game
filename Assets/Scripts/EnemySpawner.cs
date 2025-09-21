@@ -26,18 +26,9 @@ public class EnemySpawner : MonoBehaviour
     {
         if (!player)
         {
-            // 优先找 Player 标签，否则找 PlayerHealth 组件
+            // 仅通过 Player 标签查找
             var go = GameObject.FindGameObjectWithTag("Player");
             if (go) player = go.transform;
-            else
-            {
-#if UNITY_2023_1_OR_NEWER || UNITY_2022_2_OR_NEWER
-                var ph = UnityEngine.Object.FindAnyObjectByType<PlayerHealth>();
-#else
-                var ph = FindObjectOfType<PlayerHealth>();
-#endif
-                if (ph) player = ph.transform;
-            }
         }
 
         if (spawnOnStart)
