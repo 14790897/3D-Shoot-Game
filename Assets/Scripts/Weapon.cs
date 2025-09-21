@@ -35,7 +35,7 @@ public class Weapon : MonoBehaviour
     public float headshotMul = 2.0f;
 
     [Header("抛射物（有限速度，可选）")]
-    public bool useProjectile = false;     // 设为 true 使用抛射物而非命中扫描
+    public bool useProjectile = true;     // 设为 true 使用抛射物而非命中扫描
     public float projectileSpeed = 80f;    // 子弹初速度（m/s）
     public float projectileLife = 3f;      // 子弹生存时长
     public float projectileGravity = 0f;   // 额外重力（m/s^2），0 表示无下坠
@@ -75,6 +75,10 @@ public class Weapon : MonoBehaviour
         {
             Debug.LogWarning("Weapon: 未找到 Camera，请在 Weapon.cam 绑定主相机。");
         }
+        // 若存在 Projectile 层，则让同层之间忽略碰撞，避免子弹互撞
+        int __projLayer = LayerMask.NameToLayer("Projectile");
+        if (__projLayer >= 0)
+            Physics.IgnoreLayerCollision(__projLayer, __projLayer, true);
         if (UIManager.Instance != null)
             UIManager.Instance.UpdateAmmo(mag, reserveAmmo, magSize);
     }
@@ -277,6 +281,11 @@ public class Weapon : MonoBehaviour
             mat.color = new Color(1, 0.9f, 0.2f, 1);
             mr.sharedMaterial = mat;
         }
+
+        // 将子弹放入 Projectile 层（若存在），否则退回 Ignore Raycast，减少误碰撞与误射线
+        int projLayer = LayerMask.NameToLayer("Projectile");
+        int ignoreRaycast = LayerMask.NameToLayer("Ignore Raycast");
+        if (projLayer >= 0) go.layer = projLayer; else if (ignoreRaycast >= 0) go.layer = ignoreRaycast;
 
         var rb = go.GetComponent<Rigidbody>();
         if (!rb)
