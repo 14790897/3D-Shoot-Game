@@ -171,6 +171,10 @@ public class Weapon : MonoBehaviour
                 muzzleFlash.Play(true);
             }
 
+            if (logHits)
+            {
+                Debug.Log($"[Weapon] 发射抛射物 origin={muzzle.position} dir={shotDir} speed={projectileSpeed}");
+            }
             LaunchProjectile(muzzle.position, shotDir);
         }
         else
@@ -222,7 +226,11 @@ public class Weapon : MonoBehaviour
             }
             else if (debugHitMarker)
             {
-                // 未命中时，在最大射程处放一个标记，便于确认方向
+                // 未命中：打印日志并在最大射程处放一个标记，便于确认方向
+                if (logHits)
+                {
+                    Debug.Log($"[Weapon] 未命中。中心方向={dir}，射程={range}，标记位置={endPos}");
+                }
                 SpawnDebugMarker(endPos, Vector3.up);
             }
 
@@ -283,7 +291,13 @@ public class Weapon : MonoBehaviour
 
         var b = go.GetComponent<Bullet>();
         if (!b) b = go.AddComponent<Bullet>();
-        b.Init(this, damage, headshotMul, hitFxPrefab, projectileGravity, projectileLife, projectileRadius);
+        // 计算用于 CCD 的有效层：排除 Player 与 Projectile 层
+        int maskUsed = hitMask.value != 0 ? hitMask : Physics.DefaultRaycastLayers;
+        int playerLayer = LayerMask.NameToLayer("Player");
+        if (playerLayer >= 0) maskUsed &= ~(1 << playerLayer);
+        int projectileLayer = LayerMask.NameToLayer("Projectile");
+        if (projectileLayer >= 0) maskUsed &= ~(1 << projectileLayer);
+        b.Init(this, damage, headshotMul, hitFxPrefab, projectileGravity, projectileLife, projectileRadius, maskUsed);
         // 忽略与玩家自身的碰撞
         if (cam)
         {

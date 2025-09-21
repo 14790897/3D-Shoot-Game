@@ -53,10 +53,22 @@ public class Bullet : MonoBehaviour
         if (!_hit && dist > 1e-4f)
         {
             Vector3 dir = delta / dist;
-            if (Physics.SphereCast(_prevPos, Mathf.Max(0.001f, _radius), dir, out RaycastHit hit, dist, _maskUsed, QueryTriggerInteraction.Collide))
+            var hits = Physics.SphereCastAll(_prevPos, Mathf.Max(0.001f, _radius), dir, dist, _maskUsed, QueryTriggerInteraction.Collide);
+            if (hits != null && hits.Length > 0)
             {
-                Impact(hit.collider, hit.point, hit.normal);
-                return;
+                // 选择第一个有效命中：排除自身与其他子弹
+                System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+                foreach (var h in hits)
+                {
+                    if (!ShouldProcess(h.collider)) continue;
+                    if (_owner != null && _owner.logHits)
+                    {
+                        string layerName = LayerMask.LayerToName(h.collider.gameObject.layer);
+                        Debug.Log($"[Bullet] CCD 命中: {h.collider.name} 层={layerName} 点={h.point} 法线={h.normal} 距离={h.distance:F3}");
+                    }
+                    Impact(h.collider, h.point, h.normal);
+                    return;
+                }
             }
         }
         _prevPos = cur;
@@ -65,8 +77,17 @@ public class Bullet : MonoBehaviour
     void OnCollisionEnter(Collision c)
     {
         if (_hit) return; // 只处理一次
+        if (!ShouldProcess(c.collider)) return;
         var contact = c.GetContact(0);
         Impact(c.collider, contact.point, contact.normal);
+    }
+
+    bool ShouldProcess(Collider col)
+    {
+        if (!col) return false;
+        if (col.attachedRigidbody == _rb) return false; // 自身
+        if (col.GetComponentInParent<Bullet>() != null) return false; // 忽略子弹与子弹
+        return true;
     }
 
     void Impact(Collider col, Vector3 point, Vector3 normal)
@@ -89,6 +110,12 @@ public class Bullet : MonoBehaviour
             var fx = GameObject.Instantiate(_hitFx, point + normal * 0.01f, Quaternion.LookRotation(normal));
             fx.transform.SetParent(col.transform, true);
             fx.SetActive(true);
+        }
+
+        if (_owner != null && _owner.logHits)
+        {
+            string layerName = LayerMask.LayerToName(col.gameObject.layer);
+            Debug.Log($"[Bullet] 碰撞命中: {col.name} 层={layerName} 点={point} 法线={normal}");
         }
 
         Destroy(gameObject);
